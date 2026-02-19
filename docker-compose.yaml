@@ -1,43 +1,53 @@
-version: '2'
 services:
   web:
     build: .
     environment:
-      WEBSITE_TITLE: 'Test Title'
-      WEBSITE_HOME_CONTENT: 'Test Content'
-      WEBSITE_NAV_LOGO: ''
-      WEBSITE_APP_TITLE: 'Test App Title'
-      APP_USERNAME: username
-      APP_PASSWORD: password
+      WEBSITE_TITLE: ${WEBSITE_TITLE:-Electron Release Server}
+      WEBSITE_HOME_CONTENT: ${WEBSITE_HOME_CONTENT:-}
+      WEBSITE_NAV_LOGO: ${WEBSITE_NAV_LOGO:-}
+      WEBSITE_APP_TITLE: ${WEBSITE_APP_TITLE:-Electron Release Server}
+      APP_USERNAME: ${APP_USERNAME:-admin}
+      APP_PASSWORD: ${APP_PASSWORD:-changeme}
       DB_HOST: db
       DB_PORT: 5432
-      DB_USERNAME: releaseserver
-      DB_NAME: releaseserver
-      DB_PASSWORD: secret
-      # DEKs should be 32 bytes long, and cryptographically random.
-      # You can generate such a key by running the following:
-      #   require('crypto').randomBytes(32).toString('base64')
-      # PLEASE ENSURE THAT YOU CHANGE THIS VALUE IN PRODUCTION
-      DATA_ENCRYPTION_KEY: oIh0YgyxQbShuMjw4/laYcZnGKzvC3UniWFsqL0t4Zs=
-      # Recommended: 63 random alpha-numeric characters
-      # Generate using: https://www.grc.com/passwords.htm
-      TOKEN_SECRET: change_me_in_production
-      APP_URL: 'localhost:8080'
-      ASSETS_PATH: '/usr/src/electron-release-server/releases'
+      DB_USERNAME: ${DB_USERNAME:-releaseserver}
+      DB_NAME: ${DB_NAME:-releaseserver}
+      DB_PASSWORD: ${DB_PASSWORD:-secret}
+      DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:-oIh0YgyxQbShuMjw4/laYcZnGKzvC3UniWFsqL0t4Zs=}
+      TOKEN_SECRET: ${TOKEN_SECRET:-change_me_in_production}
+      APP_URL: ${APP_URL:-localhost}
+      ASSETS_PATH: /usr/src/electron-release-server/releases
     depends_on:
-      - db
-    ports:
-      - '8080:80'
-    entrypoint: ./scripts/wait.sh db:5432 -- npm start
+      db:
+        condition: service_healthy
+    expose:
+      - "80"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
     volumes:
-      - ./releases:/usr/src/electron-release-server/releases
+      - releases:/usr/src/electron-release-server/releases
+
   db:
     image: postgres:11
     environment:
-      POSTGRES_PASSWORD: secret
-      POSTGRES_USER: releaseserver
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-secret}
+      POSTGRES_USER: ${DB_USERNAME:-releaseserver}
+      POSTGRES_DB: ${DB_NAME:-releaseserver}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-releaseserver} -d ${DB_NAME:-releaseserver}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     volumes:
       - postgres:/var/lib/postgresql/data
 
 volumes:
   postgres:
+  releases:
